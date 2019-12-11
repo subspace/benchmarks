@@ -43,8 +43,8 @@ let csvContent = "";
 
 for (let t = 0; t < tests; ++t) {
   console.log(`\nFor ${(t + 1) * 128} rounds:`);
-  console.log(`Average encoding time is ${BigInt(times[t][0]) / 1000n} ms`);
-  console.log(`Average decoding time is ${BigInt(times[t][1]) / 1000n} ms`);
+  console.log(`Average encoding time is ${BigInt(times[t][0]) / 1000000n} ms`);
+  console.log(`Average decoding time is ${BigInt(times[t][1]) / 1000000n} ms`);
   csvContent += `${times[t][0]},${times[t][1]}\r\n`;
 }
 
