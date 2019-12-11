@@ -1,5 +1,6 @@
 .idea
 .vscode
+*.csv
 datastore
 dist
 node_modules

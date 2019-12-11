@@ -6,3 +6,5 @@ cd benchmarks
 npm install
 npx ts-node src/index.ts
 ```
+
+CSV files will be written to `/results` folder.
