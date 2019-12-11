@@ -1,0 +1,14 @@
+{
+  "name": "benchmarks",
+  "version": "0.0.1",
+  "description": "Benchmarks for subspace network ledger white paper",
+  "main": "dist/index.js",
+  "author": "Subspace Labs <jeremiah@subspace.network>",
+  "license": "MIT",
+  "dependencies": {
+    "ts-node": "^8.1.1",
+    "tslint": "^5.20.0",
+    "typescript": "^3.6.3",
+    "@types/node": "^12.7.5"
+  }
+}

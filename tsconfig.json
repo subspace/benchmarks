@@ -1,0 +1,41 @@
+{
+  "compilerOptions": {
+    "module": "umd",
+    "target": "esnext",
+    "sourceMap": true,
+    "forceConsistentCasingInFileNames": true,
+    "noImplicitReturns": true,
+    "noImplicitAny": true,
+    "skipLibCheck": true,
+    "moduleResolution": "node",
+    "allowSyntheticDefaultImports": false,
+    "declaration": true,
+    "sourceRoot": "src",
+    "baseUrl": "src",
+    "outDir": "dist",
+    "strict": true,
+    "noUnusedParameters": true,
+    "noUnusedLocals": true,
+    "lib": [
+      "es2015",
+      "es2017.object",
+      "dom"
+    ],
+    "typeRoots": [
+      "node_modules/@types",
+      "types"
+    ],
+    "plugins": [
+      {
+        "name": "typescript-tslint-plugin"
+      }
+    ]
+  },
+  "typedocOptions": {
+    "mode": "modules",
+    "out": "docs"
+  },
+  "include": [
+    "src"
+  ]
+}
