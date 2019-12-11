@@ -4,7 +4,7 @@ import * as path from 'path';
 import * as crypto from './crypto';
 
 const tests = 16;
-const samples = 100;
+const samples = 1;
 const times: number[][] = [];
 const piece = crypto.randomBytes(4096);
 const key = crypto.randomBytes(32);
@@ -36,6 +36,7 @@ for (let r = 128; r <= tests * 128; r += 128) {
 }
 
 // output the collated results to console and csv
+
 let csvContent = "";
 
 for (let t = 0; t < tests; ++t) {
@@ -45,4 +46,4 @@ for (let t = 0; t < tests; ++t) {
   csvContent += `${times[t][0]},${times[t][1]}\r\n`;
 }
 
-fs.writeFileSync(path.normalize('../results/encode-decode.csv'), csvContent);
+fs.writeFileSync(path.normalize('./results/encode-decode.csv'), csvContent);
