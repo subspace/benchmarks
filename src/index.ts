@@ -1,8 +1,9 @@
 // tslint:disable: no-console
+import * as fs from 'fs';
 import * as crypto from './crypto';
 
 const tests = 16;
-const samples = 25;
+const samples = 10;
 const times: number[][] = [];
 const piece = crypto.randomBytes(4096);
 const key = crypto.randomBytes(32);
@@ -31,8 +32,14 @@ for (let r = 128; r <= tests * 128; r += 128) {
   times.push([averageEncodeTime, averageDecodeTime]);
 }
 
+let csvContent = "";
+
 for (let t = 0; t < tests; ++t) {
   console.log(`\nFor ${(t + 1) * 128} rounds:`);
   console.log(`Average encoding time is ${times[t][0]} ms`);
   console.log(`Average decoding time is ${times[t][1]} ms`);
+
+  csvContent += `${times[t][0]},${times[t][1]}\r\n`;
 }
+
+fs.writeFileSync('benchmarks.csv', csvContent);
