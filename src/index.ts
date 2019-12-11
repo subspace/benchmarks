@@ -4,7 +4,7 @@ import * as path from 'path';
 import * as crypto from './crypto';
 
 const tests = 16;
-const samples = 1;
+const samples = 100;
 const times: number[][] = [];
 const piece = crypto.randomBytes(4096);
 const key = crypto.randomBytes(32);
