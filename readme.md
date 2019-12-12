@@ -4,7 +4,16 @@ A simple script that benchmarks AES-256-CBC encoding and decoding performance fo
 git clone https://github.com/subspace/benchmarks.git
 cd benchmarks
 npm install
-npx ts-node src/index.ts
 ```
 
+## Test Encoding
+
+`npx ts-node src/index.ts`
+
 CSV files will be written to `/results` folder.
+
+## Test Plotting
+
+`npx ts-node src/plotter.ts`
+
+Time will be output the console.

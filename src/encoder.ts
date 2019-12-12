@@ -4,7 +4,7 @@ import * as path from 'path';
 import * as process from 'process';
 import * as crypto from './crypto';
 
-export default function encode(): void {
+export function encode(): void {
   const tests = 16;
   const samples = 500;
   const times: BigInt[][] = [];
@@ -35,7 +35,6 @@ export default function encode(): void {
   }
 
   // output the collated results to console and csv
-
   let csvContent = "";
 
   for (let t = 0; t < tests; ++t) {

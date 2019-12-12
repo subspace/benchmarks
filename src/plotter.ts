@@ -1,7 +1,15 @@
  // tslint:disable: no-console
 import * as fs from 'fs';
 import * as path from 'path';
+import * as process from 'process';
 import * as crypto from './crypto';
+
+// ToDo
+ // test sync vs async
+ // specify drive path
+ // encode in parallel with threads
+ // encode in parallel with GPU.js
+
 
 const plotSizes = [
   1048576,        // 1 MB
@@ -18,11 +26,11 @@ const pieceCount = plotSize / pieceSize;
 
 const piece = crypto.randomBytes(pieceSize); // 4 KB
 const key = crypto.randomBytes(32); // 32 Bytes
-const rounds = 128;
+const rounds = 384;
 
 export async function plot(): Promise<void> {
   // allocate empty file for contiguous plot
-  const allocateStart = Date.now();
+  const allocateStart = process.hrtime.bigint();
   const filePath = path.normalize('./results/plot.bin');
   const fileHandle = await fs.promises.open(filePath, 'w');
   let written = 0;
@@ -34,24 +42,23 @@ export async function plot(): Promise<void> {
   }
 
   await fileHandle.close();
-  const allocateTime = Date.now() - allocateStart;
-  console.log(`Allocated empty file for plot in ${allocateTime / 1000} seconds\n`);
+  const allocateTime = process.hrtime.bigint() - allocateStart;
+  console.log(`Allocated empty file for ${plotSize} byte plot in ${allocateTime} ns\n`);
 
   // encode and write pieces
   const plot = await fs.promises.open(filePath, 'r+');
-  const plotStart = Date.now();
+  const plotStart = process.hrtime.bigint();
 
   for (let i = 0; i < pieceCount; ++i) {
     const encoding = crypto.encode(piece, i, key, rounds);
-    await plot.write(encoding, 0, pieceSize, i * pieceSize);
-    console.log(`Plotted piece at index ${i}`);
+    plot.write(encoding, 0, pieceSize, i * pieceSize);
   }
 
-  const plotTime = Date.now() - plotStart;
-  const pieceTime = plotTime / pieceCount;
+  const plotTime = process.hrtime.bigint() - plotStart;
+  const pieceTime = plotTime / BigInt(pieceCount);
   const totalTime = plotTime + allocateTime;
-  console.log(`\n\nTotal plotting time is ${totalTime / 1000 / 60} minutes`);
-  console.log(`Average piece plotting time is ${pieceTime} ms`);
+  console.log(`Total plotting time is ${totalTime} ns`);
+  console.log(`Average piece plotting time is ${pieceTime} ns`);
 }
 
 plot();
