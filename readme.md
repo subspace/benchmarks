@@ -14,6 +14,8 @@ CSV files will be written to `/results` folder.
 
 ## Test Plotting
 
-`npx ts-node src/plotter.ts`
+Tests plotting a 1 GB file to the specified drive, if a drive is not specified it will write the `plot.bin` to `/src/results/`
+
+`sudo npx ts-node src/plotter.ts /path/to/drive/plot.bin`
 
 Time will be output the console.
