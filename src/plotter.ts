@@ -5,11 +5,11 @@ import * as process from 'process';
 import * as crypto from './crypto';
 
 // ToDo
- // test sync vs async
- // specify drive path
- // encode in parallel with threads
- // encode in parallel with GPU.js
-
+ // derive reference piece deterministically
+ // evaluate many challenges and solve from this plot
+ // encode in parallel with threads (Nazar)
+ // encode in parallel with GPU.js (Nazar)
+ // extend with simple network
 
 const plotSizes = [
   1048576,        // 1 MB
@@ -28,11 +28,20 @@ const piece = crypto.randomBytes(pieceSize); // 4 KB
 const key = crypto.randomBytes(32); // 32 Bytes
 const rounds = 384;
 
+const storageDir = process.argv[2];
+
+let storagePath: string;
+// tslint:disable-next-line: prefer-conditional-expression
+if (storageDir) {
+  storagePath = path.normalize(storageDir);
+} else {
+  storagePath = path.normalize('./results/plot.bin');
+}
+
 export async function plot(): Promise<void> {
   // allocate empty file for contiguous plot
   const allocateStart = process.hrtime.bigint();
-  const filePath = path.normalize('./results/plot.bin');
-  const fileHandle = await fs.promises.open(filePath, 'w');
+  const fileHandle = await fs.promises.open(storagePath, 'w');
   let written = 0;
   const emptyPiece = Buffer.alloc(pieceSize);
 
@@ -46,12 +55,12 @@ export async function plot(): Promise<void> {
   console.log(`Allocated empty file for ${plotSize} byte plot in ${allocateTime} ns\n`);
 
   // encode and write pieces
-  const plot = await fs.promises.open(filePath, 'r+');
+  const plot = await fs.promises.open(storagePath, 'r+');
   const plotStart = process.hrtime.bigint();
 
   for (let i = 0; i < pieceCount; ++i) {
     const encoding = crypto.encode(piece, i, key, rounds);
-    plot.write(encoding, 0, pieceSize, i * pieceSize);
+    await plot.write(encoding, 0, pieceSize, i * pieceSize);
   }
 
   const plotTime = process.hrtime.bigint() - plotStart;
