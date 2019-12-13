@@ -81,13 +81,21 @@ export async function plot(): Promise<void> {
   console.log(`Average piece plotting time is ${pieceTime} ns`);
 
   // evaluate a set of random challenges
-  const samples = 1;
+  const samples = 1000;
+  const solveStart = process.hrtime.bigint();
   let challenge = crypto.randomBytes(32);
   for (let i = 0; i < samples; ++i) {
     const index = BigInt(crypto.bin2num32(challenge)) % BigInt(pieceCount);
-    const buf
-    plot.read()
+    const encoding = Buffer.allocUnsafe(pieceSize);
+    await plot.read(encoding, 0, pieceSize, pieceSize * Number(index));
+    const tag = crypto.hash(Buffer.concat([encoding, challenge]));
+    challenge = crypto.hash(tag);
   }
+  const totalSolveTime = process.hrtime.bigint() - solveStart;
+  const averageSolveTime = totalSolveTime / BigInt(samples);
+  console.log(`\nAverage solve time is ${averageSolveTime} ns for ${samples} samples`);
+
+  // measure quality
 }
 
 plot();
