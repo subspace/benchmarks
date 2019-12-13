@@ -7,6 +7,25 @@ function num2bin16(num: number): Uint8Array {
   return new Uint8Array(arr);
 }
 
+export function measureQuality(tag: Uint8Array): number {
+  let quality = 0;
+  let bitString = '';
+  tag.forEach((byte) => bitString += byte.toString(2).padStart(8, '0'));
+  for (const bit of bitString) {
+    if (bit === '0') {
+      ++quality;
+    } else {
+      break;
+    }
+  }
+  return quality;
+}
+
+export function bin2num32(bin: Uint8Array): number {
+  const view = new DataView(bin.buffer, bin.byteOffset, bin.byteLength);
+  return view.getUint32(0, false);
+}
+
 export function randomBytes(length: number): Uint8Array {
   return new Uint8Array(crypto.randomBytes(length));
 }

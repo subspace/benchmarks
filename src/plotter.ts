@@ -1,18 +1,21 @@
- // tslint:disable: no-console
+// tslint:disable: no-console
+// tslint:disable: prefer-conditional-expression
+
 import * as fs from 'fs';
 import * as path from 'path';
 import * as process from 'process';
 import * as crypto from './crypto';
 
 // ToDo
- // derive reference piece deterministically
  // evaluate many challenges and solve from this plot
  // encode in parallel with threads (Nazar)
  // encode in parallel with GPU.js (Nazar)
  // extend with simple network
 
+// define constants
 const plotSizes = [
   1048576,        // 1 MB
+  10485760,       // 10 MB
   104857600,      // 100 MB
   1073741824,     // 1 GB
   10737418240,    // 10 GB
@@ -21,17 +24,25 @@ const plotSizes = [
 ];
 
 const pieceSize = 4096;
-const plotSize = plotSizes[2];
+const plotSize = plotSizes[1];
 const pieceCount = plotSize / pieceSize;
-
-const piece = crypto.randomBytes(pieceSize); // 4 KB
-const key = crypto.randomBytes(32); // 32 Bytes
 const rounds = 384;
 
-const storageDir = process.argv[2];
+// generate a random encoding key
+const key = crypto.randomBytes(32); // 32 Bytes
 
+// deterministically derive the source piece
+let seed = Uint8Array.from(Buffer.from('subspace', 'hex'));
+const pieceParts: Uint8Array[] = [];
+for (let i = 0; i < 127; ++i) {
+  pieceParts.push(seed);
+  seed = crypto.hash(seed);
+}
+const piece = Buffer.concat(pieceParts);
+
+// set storage directory for plotting
+const storageDir = process.argv[2];
 let storagePath: string;
-// tslint:disable-next-line: prefer-conditional-expression
 if (storageDir) {
   storagePath = path.normalize(storageDir);
 } else {
@@ -68,6 +79,15 @@ export async function plot(): Promise<void> {
   const totalTime = plotTime + allocateTime;
   console.log(`Total plotting time is ${totalTime} ns`);
   console.log(`Average piece plotting time is ${pieceTime} ns`);
+
+  // evaluate a set of random challenges
+  const samples = 1;
+  let challenge = crypto.randomBytes(32);
+  for (let i = 0; i < samples; ++i) {
+    const index = BigInt(crypto.bin2num32(challenge)) % BigInt(pieceCount);
+    const buf
+    plot.read()
+  }
 }
 
 plot();
