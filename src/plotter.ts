@@ -7,10 +7,13 @@ import * as process from 'process';
 import * as crypto from './crypto';
 
 // ToDo
- // evaluate many challenges and solve from this plot
- // encode in parallel with threads (Nazar)
- // encode in parallel with GPU.js (Nazar)
- // extend with simple network
+  // clean up code
+  // generate proof and verify
+  // encode in parallel with threads (Nazar)
+  // encode in parallel with GPU.js (Nazar)
+  // add a simple ledger for testing forks
+  // add in multiple nodes/farmers as separate processes
+  // extend with simple network
 
 // define constants
 const plotSizes = [
@@ -107,6 +110,8 @@ export async function plot(): Promise<void> {
   console.log(`Expected encoding set size is ${encodingSetSize}`);
   console.log(`Actual encoding set size is ${1}`);
   console.log(`Accuracy is ${accuracy} %`);
+
+  // generate and verify proofs of storage
 }
 
 plot();
