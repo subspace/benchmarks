@@ -24,7 +24,7 @@ const plotSizes = [
 ];
 
 const pieceSize = 4096;
-const plotSize = plotSizes[1];
+const plotSize = plotSizes[2];
 const pieceCount = plotSize / pieceSize;
 const rounds = 384;
 
@@ -81,21 +81,32 @@ export async function plot(): Promise<void> {
   console.log(`Average piece plotting time is ${pieceTime} ns`);
 
   // evaluate a set of random challenges
-  const samples = 1000;
+  const samples = 16000;
   const solveStart = process.hrtime.bigint();
   let challenge = crypto.randomBytes(32);
+  let totalQuality = 0;
   for (let i = 0; i < samples; ++i) {
     const index = BigInt(crypto.bin2num32(challenge)) % BigInt(pieceCount);
     const encoding = Buffer.allocUnsafe(pieceSize);
     await plot.read(encoding, 0, pieceSize, pieceSize * Number(index));
     const tag = crypto.hash(Buffer.concat([encoding, challenge]));
+    totalQuality += crypto.measureQuality(tag);
     challenge = crypto.hash(tag);
   }
+
+  // calculate and log solve time
   const totalSolveTime = process.hrtime.bigint() - solveStart;
   const averageSolveTime = totalSolveTime / BigInt(samples);
   console.log(`\nAverage solve time is ${averageSolveTime} ns for ${samples} samples`);
 
-  // measure quality
+  // calculate and log quality
+  const averageQuality = totalQuality / samples;
+  const encodingSetSize = Math.pow(2, (averageQuality - 1));
+  const accuracy = 100 * ((1 - Math.abs(encodingSetSize - 1)) / 1);
+  console.log(`Average quality is ${averageQuality}`);
+  console.log(`Expected encoding set size is ${encodingSetSize}`);
+  console.log(`Actual encoding set size is ${1}`);
+  console.log(`Accuracy is ${accuracy} %`);
 }
 
 plot();
