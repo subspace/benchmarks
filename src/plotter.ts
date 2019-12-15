@@ -3,11 +3,12 @@
 // tslint:disable: prefer-conditional-expression
 
 import * as fs from 'fs';
-import * as os from "os";
 import * as path from 'path';
 import * as process from 'process';
 import {Worker} from "worker_threads";
 import * as crypto from './crypto';
+
+const physicalCpuCount: number = require('physical-cpu-count');
 
 // ToDo
   // clean up code
@@ -111,7 +112,7 @@ class WorkerPool<Data, Message, Result> {
    * @param threads Will be equal to CPU cores if not specified
    */
   public static async create<Data, Message, Result>(path: string, data: Data, threads?: number | undefined): Promise<WorkerPool<Data, Message, Result>> {
-    threads = threads || os.cpus().length;
+    threads = threads || physicalCpuCount;
     const workerPool = new WorkerPool<Data, Message, Result>(threads);
     await workerPool.initWorkers(path, data);
 
@@ -119,6 +120,17 @@ class WorkerPool<Data, Message, Result> {
   }
 
   private constructor(public readonly threads: number) {
+  }
+
+  /**
+   * @param thread
+   * @param message
+   */
+  public async sendToThread(thread: number, message: Message): Promise<Result> {
+    return new Promise((resolve) => {
+      this.callbacks.set(thread, resolve);
+      this.workers[thread].postMessage(message);
+    });
   }
 
   /**
@@ -194,36 +206,36 @@ export async function plot(): Promise<void> {
   const batchwriter = new BatchWriter(plot);
   const workerPool = useWorkerPool
     ? await WorkerPool.create<IData, IMessage, Uint8Array>(
-        `${__dirname}/encoder-worker.js`,
-          {key, rounds},
-      )
+      `${__dirname}/encoder-worker.js`,
+      {key, rounds},
+    )
     : null;
   const plotStart = process.hrtime.bigint();
 
   if (workerPool) {
-    let sequentialWritesPromise = Promise.resolve();
-
-    for (
-        let i = 0, encodingsPerIteration = workerPool.threads;
-        i < pieceCount;
-        i += workerPool.threads, encodingsPerIteration = Math.min(encodingsPerIteration, pieceCount - i)
-    ) {
-      const messages: IMessage[] = [];
-      for (let offset = 0; offset < encodingsPerIteration; ++offset) {
-        const iv = i + offset;
-        messages.push({piece, iv});
-      }
-
-      const results = await workerPool.sendBatch(messages);
-
-      sequentialWritesPromise = sequentialWritesPromise.then(async () => {
-        for (let offset = 0; offset < encodingsPerIteration; ++offset) {
-          const iv = i + offset;
-          await batchwriter.write(results[offset], (iv * pieceSize));
-        }
-      });
+    let sequentialWritesPromisesChain = Promise.resolve();
+    const threads = workerPool.threads;
+    const parallelEncodingPromisesChain = new Map<number, Promise<any>>();
+    for (let thread = 0; thread < threads; ++thread) {
+      parallelEncodingPromisesChain.set(thread, Promise.resolve());
     }
-    await sequentialWritesPromise.then(() => {
+
+    for (let iteration = 0, iterations = Math.ceil(pieceCount / threads); iteration < iterations; ++iteration) {
+      const threadsToUse = Math.min(threads, pieceCount - iteration * threads);
+      for (let thread = 0; thread < threadsToUse; ++thread) {
+        const iv = iteration * threadsToUse + thread;
+        const resultPromise = (parallelEncodingPromisesChain.get(thread) as Promise<any>).then(() => {
+          return workerPool.sendToThread(thread, {piece, iv});
+        });
+        parallelEncodingPromisesChain.set(thread, resultPromise);
+        sequentialWritesPromisesChain = sequentialWritesPromisesChain
+          .then(() => resultPromise)
+          .then((encoding) => {
+            return batchwriter.write(encoding, (iv * pieceSize));
+          });
+      }
+    }
+    await sequentialWritesPromisesChain.then(() => {
       return batchwriter.flush();
     });
   } else {
