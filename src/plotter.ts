@@ -52,6 +52,38 @@ if (storageDir) {
   storagePath = path.normalize('./results/plot.bin');
 }
 
+class BatchWriter {
+  // Number of elements in buffer for 2M size
+  private readonly bufferSizeToFlush = 2 * 1024 * 1024 / pieceSize;
+  private writeBufferStartPosition: number | null = null;
+  private writeBuffer: Uint8Array[] = [];
+
+  constructor(private readonly handle: fs.promises.FileHandle) {
+  }
+
+  public async write(encoding: Uint8Array, position: number): Promise<void> {
+    if (this.writeBufferStartPosition === null) {
+      this.writeBufferStartPosition = position;
+    }
+    this.writeBuffer.push(encoding);
+    const bufferSize = this.writeBuffer.length;
+    if (bufferSize === this.bufferSizeToFlush) {
+      await this.flush();
+    }
+  }
+  public async flush(): Promise<void> {
+    const bufferSize = this.writeBuffer.length;
+    const position = this.writeBufferStartPosition;
+    if (!bufferSize || position === null) {
+      return;
+    }
+    const bufferToWrite = this.writeBuffer;
+    this.writeBuffer = [];
+    this.writeBufferStartPosition = null;
+    await this.handle.writev(bufferToWrite, position);
+  }
+}
+
 export async function plot(): Promise<void> {
   // allocate empty file for contiguous plot
   const allocateStart = process.hrtime.bigint();
@@ -70,12 +102,14 @@ export async function plot(): Promise<void> {
 
   // encode and write pieces
   const plot = await fs.promises.open(storagePath, 'r+');
+  const batchwriter = new BatchWriter(plot);
   const plotStart = process.hrtime.bigint();
 
   for (let i = 0; i < pieceCount; ++i) {
     const encoding = crypto.encode(piece, i, key, rounds);
-    await plot.write(encoding, 0, pieceSize, i * pieceSize);
+    await batchwriter.write(encoding, i * pieceSize);
   }
+  await batchwriter.flush();
 
   const plotTime = process.hrtime.bigint() - plotStart;
   const pieceTime = plotTime / BigInt(pieceCount);
