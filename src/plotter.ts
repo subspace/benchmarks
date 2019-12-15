@@ -88,14 +88,17 @@ class BatchWriter {
   }
 }
 
-interface IMessage {
-  piece: Uint8Array;
-  iv: number;
+interface IData {
   key: Uint8Array;
   rounds: number;
 }
 
-class WorkerPool<Message, Result> {
+interface IMessage {
+  piece: Uint8Array;
+  iv: number;
+}
+
+class WorkerPool<Data, Message, Result> {
   private readonly workers: Worker[] = [];
   /**
    * Mapping from thread number to its current onMessage callback
@@ -104,12 +107,13 @@ class WorkerPool<Message, Result> {
 
   /**
    * @param path
+   * @param data
    * @param threads Will be equal to CPU cores if not specified
    */
-  public static async create<Message, Result>(path: string, threads?: number | undefined): Promise<WorkerPool<Message, Result>> {
+  public static async create<Data, Message, Result>(path: string, data: Data, threads?: number | undefined): Promise<WorkerPool<Data, Message, Result>> {
     threads = threads || os.cpus().length;
-    const workerPool = new WorkerPool<Message, Result>(threads);
-    await workerPool.initWorkers(path);
+    const workerPool = new WorkerPool<Data, Message, Result>(threads);
+    await workerPool.initWorkers(path, data);
 
     return workerPool;
   }
@@ -140,12 +144,12 @@ class WorkerPool<Message, Result> {
     }
   }
 
-  private async initWorkers(path: string) {
+  private async initWorkers(path: string, workerData: Data) {
     const promises: Array<Promise<Worker>> = [];
     for (let i = 0; i < this.threads; ++i) {
       promises.push(
         new Promise((resolve) => {
-          const worker = new Worker(path);
+          const worker = new Worker(path, {workerData});
           worker.once('message', (message: any) => {
             if (message === 'ready') {
               console.log(`Worker #${i+1}/${this.threads} is ready`);
@@ -189,12 +193,16 @@ export async function plot(): Promise<void> {
   const plot = await fs.promises.open(storagePath, 'r+');
   const batchwriter = new BatchWriter(plot);
   const workerPool = useWorkerPool
-    ? await WorkerPool.create<IMessage, Uint8Array>(`${__dirname}/encoder-worker.js`)
+    ? await WorkerPool.create<IData, IMessage, Uint8Array>(
+        `${__dirname}/encoder-worker.js`,
+          {key, rounds},
+      )
     : null;
   const plotStart = process.hrtime.bigint();
-  let sequentialWritesPromise = Promise.resolve();
 
   if (workerPool) {
+    let sequentialWritesPromise = Promise.resolve();
+
     for (
         let i = 0, encodingsPerIteration = workerPool.threads;
         i < pieceCount;
@@ -203,7 +211,7 @@ export async function plot(): Promise<void> {
       const messages: IMessage[] = [];
       for (let offset = 0; offset < encodingsPerIteration; ++offset) {
         const iv = i + offset;
-        messages.push({piece, iv, key, rounds});
+        messages.push({piece, iv});
       }
 
       const results = await workerPool.sendBatch(messages);
@@ -215,15 +223,16 @@ export async function plot(): Promise<void> {
         }
       });
     }
+    await sequentialWritesPromise.then(() => {
+      return batchwriter.flush();
+    });
   } else {
     for (let i = 0; i < pieceCount; ++i) {
       const encoding = crypto.encode(piece, i, key, rounds);
       await batchwriter.write(encoding, i * pieceSize);
     }
+    await batchwriter.flush();
   }
-  await sequentialWritesPromise.then(() => {
-    return batchwriter.flush();
-  });
 
   const plotTime = process.hrtime.bigint() - plotStart;
   const pieceTime = plotTime / BigInt(pieceCount);
