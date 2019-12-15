@@ -33,7 +33,7 @@ const pieceSize = 4096;
 const plotSize = plotSizes[2];
 const pieceCount = plotSize / pieceSize;
 const rounds = 384;
-const useWorkerPool = false;
+const useWorkerPool = true;
 
 // generate a random encoding key
 const key = crypto.randomBytes(32); // 32 Bytes
@@ -192,6 +192,7 @@ export async function plot(): Promise<void> {
     ? await WorkerPool.create<IMessage, Uint8Array>(`${__dirname}/encoder-worker.js`)
     : null;
   const plotStart = process.hrtime.bigint();
+  let sequentialWritesPromise = Promise.resolve();
 
   if (workerPool) {
     for (
@@ -207,10 +208,12 @@ export async function plot(): Promise<void> {
 
       const results = await workerPool.sendBatch(messages);
 
-      for (let offset = 0; offset < encodingsPerIteration; ++offset) {
-        const iv = i + offset;
-        await batchwriter.write(results[offset], (iv * pieceSize));
-      }
+      sequentialWritesPromise = sequentialWritesPromise.then(async () => {
+        for (let offset = 0; offset < encodingsPerIteration; ++offset) {
+          const iv = i + offset;
+          await batchwriter.write(results[offset], (iv * pieceSize));
+        }
+      });
     }
   } else {
     for (let i = 0; i < pieceCount; ++i) {
@@ -218,7 +221,9 @@ export async function plot(): Promise<void> {
       await batchwriter.write(encoding, i * pieceSize);
     }
   }
-  await batchwriter.flush();
+  await sequentialWritesPromise.then(() => {
+    return batchwriter.flush();
+  });
 
   const plotTime = process.hrtime.bigint() - plotStart;
   const pieceTime = plotTime / BigInt(pieceCount);
