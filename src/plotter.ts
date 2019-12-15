@@ -1,9 +1,12 @@
+/* tslint:disable */
 // tslint:disable: no-console
 // tslint:disable: prefer-conditional-expression
 
 import * as fs from 'fs';
+import * as os from "os";
 import * as path from 'path';
 import * as process from 'process';
+import {Worker} from "worker_threads";
 import * as crypto from './crypto';
 
 // ToDo
@@ -30,6 +33,7 @@ const pieceSize = 4096;
 const plotSize = plotSizes[2];
 const pieceCount = plotSize / pieceSize;
 const rounds = 384;
+const useWorkerPool = false;
 
 // generate a random encoding key
 const key = crypto.randomBytes(32); // 32 Bytes
@@ -84,6 +88,87 @@ class BatchWriter {
   }
 }
 
+interface IMessage {
+  piece: Uint8Array;
+  iv: number;
+  key: Uint8Array;
+  rounds: number;
+}
+
+class WorkerPool<Message, Result> {
+  private readonly workers: Worker[] = [];
+  /**
+   * Mapping from thread number to its current onMessage callback
+   */
+  private readonly callbacks = new Map<number, (result: Result) => void>();
+
+  /**
+   * @param path
+   * @param threads Will be equal to CPU cores if not specified
+   */
+  public static async create<Message, Result>(path: string, threads?: number | undefined): Promise<WorkerPool<Message, Result>> {
+    threads = threads || os.cpus().length;
+    const workerPool = new WorkerPool<Message, Result>(threads);
+    await workerPool.initWorkers(path);
+
+    return workerPool;
+  }
+
+  private constructor(public readonly threads: number) {
+  }
+
+  /**
+   * @param messages Up to `workerPool.threads` messages to be processed
+   */
+  public async sendBatch(messages: Message[]): Promise<Array<Result>> {
+    const callbacks = this.callbacks;
+    const promises: Array<Promise<Result>> = [];
+
+    for (let i = 0; i < messages.length; ++i) {
+      promises.push(new Promise((resolve) => {
+        callbacks.set(i, resolve);
+        this.workers[i].postMessage(messages[i]);
+      }))
+    }
+
+    return Promise.all(promises);
+  }
+
+  public unref() {
+    for (const worker of this.workers) {
+      worker.unref();
+    }
+  }
+
+  private async initWorkers(path: string) {
+    const promises: Array<Promise<Worker>> = [];
+    for (let i = 0; i < this.threads; ++i) {
+      promises.push(
+        new Promise((resolve) => {
+          const worker = new Worker(path);
+          worker.once('message', (message: any) => {
+            if (message === 'ready') {
+              console.log(`Worker #${i+1}/${this.threads} is ready`);
+              worker.on('message', (message: Result) => {
+                const callback = this.callbacks.get(i);
+                this.callbacks.delete(i);
+                if (callback) {
+                  callback(message);
+                } else {
+                  console.error(`No callback for thread #${i+1}!`, message);
+                }
+              });
+              resolve(worker);
+            }
+          });
+        })
+      );
+    }
+    const workers = await Promise.all(promises);
+    this.workers.push(...workers);
+  }
+}
+
 export async function plot(): Promise<void> {
   // allocate empty file for contiguous plot
   const allocateStart = process.hrtime.bigint();
@@ -103,11 +188,35 @@ export async function plot(): Promise<void> {
   // encode and write pieces
   const plot = await fs.promises.open(storagePath, 'r+');
   const batchwriter = new BatchWriter(plot);
+  const workerPool = useWorkerPool
+    ? await WorkerPool.create<IMessage, Uint8Array>(`${__dirname}/encoder-worker.js`)
+    : null;
   const plotStart = process.hrtime.bigint();
 
-  for (let i = 0; i < pieceCount; ++i) {
-    const encoding = crypto.encode(piece, i, key, rounds);
-    await batchwriter.write(encoding, i * pieceSize);
+  if (workerPool) {
+    for (
+        let i = 0, encodingsPerIteration = workerPool.threads;
+        i < pieceCount;
+        i += workerPool.threads, encodingsPerIteration = Math.min(encodingsPerIteration, pieceCount - i)
+    ) {
+      const messages: IMessage[] = [];
+      for (let offset = 0; offset < encodingsPerIteration; ++offset) {
+        const iv = i + offset;
+        messages.push({piece, iv, key, rounds});
+      }
+
+      const results = await workerPool.sendBatch(messages);
+
+      for (let offset = 0; offset < encodingsPerIteration; ++offset) {
+        const iv = i + offset;
+        await batchwriter.write(results[offset], (iv * pieceSize));
+      }
+    }
+  } else {
+    for (let i = 0; i < pieceCount; ++i) {
+      const encoding = crypto.encode(piece, i, key, rounds);
+      await batchwriter.write(encoding, i * pieceSize);
+    }
   }
   await batchwriter.flush();
 
@@ -144,6 +253,11 @@ export async function plot(): Promise<void> {
   console.log(`Expected encoding set size is ${encodingSetSize}`);
   console.log(`Actual encoding set size is ${1}`);
   console.log(`Accuracy is ${accuracy} %`);
+
+  await plot.close();
+  if (workerPool) {
+    workerPool.unref();
+  }
 
   // generate and verify proofs of storage
 }
