@@ -43,8 +43,8 @@ export function encode(piece: Uint8Array, index: number, key: Uint8Array, rounds
   let encoding = piece;
   for (let r = 0; r < rounds; ++r) {
     const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
-    const cipherText = cipher.update(encoding);
-    encoding = Buffer.concat([cipherText, cipher.final()]);
+    cipher.setAutoPadding(false);
+    encoding = cipher.update(encoding);
   }
   return encoding;
 }
@@ -54,8 +54,8 @@ export function decode(encoding: Uint8Array, index: number, key: Uint8Array, rou
   let piece = encoding;
   for (let r = 0; r < rounds; ++r) {
     const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
-    const plainText = decipher.update(piece);
-    piece = Buffer.concat([plainText, decipher.final()]);
+    decipher.setAutoPadding(false);
+    piece = decipher.update(piece);
   }
   return piece;
 }

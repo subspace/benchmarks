@@ -40,9 +40,9 @@ const useWorkerPool = true;
 const key = crypto.randomBytes(32); // 32 Bytes
 
 // deterministically derive the source piece
-let seed = Uint8Array.from(Buffer.from('subspace', 'hex'));
+let seed = Uint8Array.from(Buffer.from('SUBSPACE', 'hex'));
 const pieceParts: Uint8Array[] = [];
-for (let i = 0; i < 127; ++i) {
+for (let i = 0; i < 129; ++i) {
   pieceParts.push(seed);
   seed = crypto.hash(seed);
 }
